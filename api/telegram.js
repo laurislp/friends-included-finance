@@ -29,8 +29,9 @@ module.exports=async(req,res)=>{try{
  if((await db('transactions?reference=eq.'+encodeURIComponent(row.reference)+'&select=reference')).length){await send(row.reference+' already exists. No duplicate was created.');return res.json({ok:true});}
  await db('transactions',{method:'POST',body:JSON.stringify(row)});
  }catch(e){await send('Not saved: '+e.message);return res.json({ok:true});}
- await send(row.reference+' saved as Pending: EUR '+row.amount.toFixed(2)+'. The manager can now approve it in Records. The final decision will be sent to this chat.');
+ await send(row.reference+' saved as Pending'+(row.type==='expense'?' (awaiting allocation), proposed '+row.proposed_allocation:'')+': EUR '+row.amount.toFixed(2)+'. '+(row.type==='expense'?'Company result is reduced immediately. ':'')+'The manager can now approve it in Records. The final decision will be sent to this chat.');
  await db('transactions?reference=eq.'+encodeURIComponent(row.reference),{method:'PATCH',body:JSON.stringify({notification_status:'sent'})});
- if(process.env.GOOGLE_SHEETS_SYNC_URL){try{await fetch(process.env.GOOGLE_SHEETS_SYNC_URL,{method:'POST',signal:AbortSignal.timeout(25000)});}catch(e){console.error('Sheet sync:',e.message);}}
+ const sync=await require('./index').syncLedger(row.reference);
+ if(!sync.ok)console.error('Sheet sync failed for '+row.reference);
  return res.json({ok:true});
 }catch(e){console.error('Telegram failed:',e.message);return res.status(500).json({ok:false,error:'Telegram update failed'});}};
